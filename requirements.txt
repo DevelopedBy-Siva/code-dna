@@ -1,0 +1,15 @@
+typer[all]>=0.9
+rich>=13
+datasets>=2.18
+transformers>=4.40
+peft>=0.10
+trl>=0.8
+bitsandbytes>=0.43
+accelerate>=0.29
+fastapi>=0.110
+uvicorn>=0.29
+tree-sitter>=0.21
+tree-sitter-languages>=1.10
+evaluate>=0.4
+llama-cpp-python>=0.2
+human-eval>=1.0
