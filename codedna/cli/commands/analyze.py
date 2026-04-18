@@ -23,7 +23,10 @@ def analyze_command(repo: Path = typer.Option(Path("."), "--repo")) -> None:
     dataset_dir = repo_root / ".codedna" / "dataset"
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
-    files = scan_repo(str(repo_root), {"max_file_size_bytes": 100 * 1024})
+    files = scan_repo(
+        str(repo_root),
+        {"max_file_size_bytes": 100 * 1024, "supported_extensions": [".py"]},
+    )
     extracted_pairs = [pair for file_path in files for pair in extract_pairs_from_file(file_path)]
     style_profile = detect_patterns(files)
     scored_pairs = score_all(extracted_pairs, style_profile)

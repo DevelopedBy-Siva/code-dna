@@ -78,7 +78,10 @@ def _load_or_build_private_pairs(repo_root: Path) -> list[dict]:
     raw_path = repo_root / ".codedna" / "dataset" / "raw_pairs.json"
     private_root = repo_root / "private-repo"
     if private_root.exists():
-        files = scan_repo(str(private_root), {"max_file_size_bytes": 100 * 1024})
+        files = scan_repo(
+            str(private_root),
+            {"max_file_size_bytes": 100 * 1024, "supported_extensions": [".py"]},
+        )
         extracted_pairs = [pair for file_path in files for pair in extract_pairs_from_file(file_path)]
         style_profile = detect_patterns(files)
         scored_pairs = score_all(extracted_pairs, style_profile)

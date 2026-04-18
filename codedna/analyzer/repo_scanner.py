@@ -17,7 +17,8 @@ def scan_repo(root_path: str, config: dict) -> list[Path]:
         "__pycache__",
         ".venv",
     }
-    supported_extensions = {".py", ".ts", ".js", ".go", ".rs", ".java"}
+    configured_extensions = config.get("supported_extensions", [".py"])
+    supported_extensions = {str(extension) for extension in configured_extensions}
     max_size_bytes = int(config.get("max_file_size_bytes", 100 * 1024))
 
     files: list[Path] = []
