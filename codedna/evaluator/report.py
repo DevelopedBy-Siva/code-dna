@@ -26,10 +26,14 @@ def print_report(base_metrics: dict, ft_metrics: dict) -> None:
         base_value = float(base_metrics.get(key, 0.0))
         ft_value = float(ft_metrics.get(key, 0.0))
         delta = ft_value - base_value
-        good = delta < 0 if lower_is_better else delta > 0
-        arrow = "↑" if good else "↓"
-        color = "green" if good else "red"
-        table.add_row(label, f"{base_value:.2f}", f"{ft_value:.2f}", f"[{color}]{arrow} {delta:+.2f}[/{color}]")
+        if abs(delta) < 1e-9:
+            table.add_row(label, f"{base_value:.2f}", f"{ft_value:.2f}", "[yellow]→ +0.00[/yellow]")
+            continue
+
+        improved = delta < 0 if lower_is_better else delta > 0
+        arrow = "↑" if improved else "↓"
+        color = "green" if improved else "red"
+        table.add_row(label, f"{base_value:.2f}", f"{ft_value:.2f}", f"[{color}]{arrow} {abs(delta):.2f}[/{color}]")
 
     Console().print(table)
 

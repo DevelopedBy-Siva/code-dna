@@ -98,7 +98,6 @@ def _generate_text(model: object, tokenizer: object, prompt: str) -> str:
         outputs = model.generate(
             **inputs,
             max_new_tokens=192,
-            temperature=0.2,
             do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
