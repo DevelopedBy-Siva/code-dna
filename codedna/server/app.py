@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import re
 from typing import Literal
 from uuid import uuid4
 
@@ -79,6 +80,7 @@ def create_app(checkpoint_path: str | None = None) -> FastAPI:
             temperature=request.temperature,
             stop=request.stop,
         )
+        completion = _clean_completion(completion)
         return {
             "id": f"chatcmpl-{uuid4().hex}",
             "object": "chat.completion",
@@ -103,3 +105,93 @@ def _format_messages_to_prompt(messages: list[ChatMessage]) -> str:
         parts.append(f"{message.role}: {message.content}")
     parts.append("assistant:")
     return "\n".join(parts)
+
+
+_DISCLAIMER_PATTERNS = (
+    "for educational purposes only",
+    'provided "as is" without warranty',
+    "consult a professional developer",
+    "consult a professional developer or security expert",
+    "please use this code at your own risk",
+    "in no event will the author be liable",
+    "the entire risk as to the quality and performance",
+)
+
+
+def _clean_completion(content: str) -> str:
+    """Trim common local-model failure modes into a cleaner final reply."""
+
+    text = content.strip()
+    if not text:
+        return text
+
+    text = re.sub(r"^\s*assistant:\s*", "", text, flags=re.IGNORECASE)
+    text = _truncate_on_role_marker(text)
+    text = _dedupe_code_fences(text)
+    text = _dedupe_paragraphs(text)
+    return text.strip()
+
+
+def _truncate_on_role_marker(text: str) -> str:
+    """Drop any trailing prompt echo once the model starts a new role."""
+
+    markers = ("\nuser:", "\nsystem:", "\nassistant:")
+    end = len(text)
+    lowered = text.lower()
+    for marker in markers:
+        index = lowered.find(marker)
+        if index != -1:
+            end = min(end, index)
+    return text[:end].strip()
+
+
+def _dedupe_code_fences(text: str) -> str:
+    """Keep the first copy when the same fenced code block is repeated."""
+
+    pattern = re.compile(r"```([\w+-]*)\n([\s\S]*?)```")
+    seen: set[tuple[str, str]] = set()
+    pieces: list[str] = []
+    last = 0
+
+    for match in pattern.finditer(text):
+        pieces.append(text[last : match.start()])
+        language = (match.group(1) or "").strip().lower()
+        code = match.group(2).strip()
+        key = (language, code)
+        if key not in seen:
+            pieces.append(match.group(0))
+            seen.add(key)
+        last = match.end()
+
+    pieces.append(text[last:])
+    return "".join(pieces)
+
+
+def _dedupe_paragraphs(text: str) -> str:
+    """Remove duplicated prose and repetitive disclaimer-style filler."""
+
+    parts = re.split(r"(\n\s*\n)", text)
+    seen: set[str] = set()
+    cleaned: list[str] = []
+
+    for part in parts:
+        if not part or re.fullmatch(r"\n\s*\n", part):
+            if cleaned and not re.fullmatch(r"\n\s*\n", cleaned[-1]):
+                cleaned.append("\n\n")
+            continue
+
+        normalized = " ".join(part.split()).strip()
+        if not normalized:
+            continue
+
+        lowered = normalized.lower()
+        if any(pattern in lowered for pattern in _DISCLAIMER_PATTERNS):
+            continue
+        if len(normalized) > 80 and normalized in seen:
+            continue
+
+        seen.add(normalized)
+        cleaned.append(part.strip())
+
+    result = "".join(cleaned).strip()
+    return re.sub(r"\n{3,}", "\n\n", result)
