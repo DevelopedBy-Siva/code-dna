@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 .venv/
 *.egg-info/
+README_exp.md
+.DS_Store
+model/.DS_Store
+model/checkpoints/.DS_Store
+*.safetensors
