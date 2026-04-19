@@ -1,266 +1,273 @@
-"""Simple browser playground for the CodeDNA local server."""
+"""Browser interface for the CodeDNA local server."""
 
 from __future__ import annotations
 
 
 def render_playground() -> str:
-    """Return a lightweight HTML playground for chatting with the local model."""
+    """Return a minimal chat interface for the local model."""
 
     return """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CodeDNA Playground</title>
+  <title>CodeDNA</title>
   <style>
     :root {
-      --bg: #f3efe7;
-      --panel: #fffaf3;
-      --line: #d8ccba;
-      --ink: #1f1c18;
-      --muted: #766c60;
-      --accent: #195c4f;
-      --accent-2: #d29c2e;
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --line: #e5e7eb;
+      --ink: #111827;
+      --muted: #6b7280;
+      --user: #f3f4f6;
+      --assistant: #ffffff;
+      --accent: #111827;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      background:
-        radial-gradient(circle at top left, rgba(210, 156, 46, 0.18), transparent 26%),
-        linear-gradient(180deg, #f8f2e8 0%, var(--bg) 100%);
+      background: var(--bg);
       color: var(--ink);
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: Arial, Helvetica, sans-serif;
     }
-    .shell {
-      max-width: 1100px;
-      margin: 0 auto;
-      min-height: 100vh;
-      padding: 32px 20px 40px;
+    .page {
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
     }
     .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 20px;
-      margin-bottom: 22px;
+      text-align: center;
+      padding: 28px 20px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     .title {
       margin: 0;
-      font-size: clamp(2rem, 4vw, 3.4rem);
-      line-height: 0.95;
+      font-size: clamp(1.9rem, 4vw, 2.8rem);
       letter-spacing: -0.04em;
+      font-weight: 600;
     }
     .subtitle {
-      margin: 10px 0 0;
-      max-width: 580px;
+      margin: 8px auto 0;
+      max-width: 560px;
       color: var(--muted);
-      font-size: 1rem;
+      font-size: 0.98rem;
       line-height: 1.5;
-    }
-    .status {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.72);
-      min-width: 220px;
-    }
-    .status strong { display: block; margin-bottom: 6px; }
-    .grid {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 20px;
-    }
-    .panel {
-      background: color-mix(in srgb, var(--panel) 88%, white);
-      border: 1px solid var(--line);
-      box-shadow: 0 14px 30px rgba(46, 35, 21, 0.08);
-    }
-    .controls { padding: 18px; }
-    .controls h2, .chat h2 {
-      margin: 0 0 14px;
-      font-size: 0.95rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-    label {
-      display: block;
-      margin: 12px 0 6px;
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-    textarea, input {
-      width: 100%;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.8);
-      color: var(--ink);
-      padding: 12px;
-      font: inherit;
-      resize: vertical;
-    }
-    textarea { min-height: 150px; }
-    .button-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 16px;
-    }
-    button {
-      border: none;
-      padding: 12px 16px;
-      font: inherit;
-      cursor: pointer;
-      transition: transform 120ms ease, opacity 120ms ease;
-    }
-    button:hover { transform: translateY(-1px); }
-    button.primary {
-      background: var(--accent);
-      color: white;
-      flex: 1;
-    }
-    button.secondary {
-      background: var(--accent-2);
-      color: #2b1f0a;
-    }
-    .chat {
-      display: flex;
-      flex-direction: column;
-      min-height: 70vh;
-    }
-    .chat-head {
-      padding: 18px 18px 0;
     }
     .messages {
-      padding: 18px;
+      flex: 1;
+      width: 100%;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 28px 20px 160px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      overflow: auto;
-      flex: 1;
+      gap: 16px;
     }
     .message {
-      padding: 14px 16px;
-      border-left: 4px solid var(--line);
-      background: rgba(255,255,255,0.74);
-      white-space: pre-wrap;
-      line-height: 1.5;
-      overflow-wrap: anywhere;
+      width: 100%;
+      display: flex;
     }
-    .message.user { border-left-color: var(--accent-2); }
-    .message.assistant { border-left-color: var(--accent); }
-    .message.error { border-left-color: #a33b2f; color: #7f281f; }
-    .msg-label {
-      display: block;
-      font-size: 0.78rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 8px;
+    .bubble {
+      max-width: min(780px, 100%);
+      padding: 16px 18px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.6;
+      font-size: 0.98rem;
+    }
+    .message.user {
+      justify-content: flex-end;
+    }
+    .message.user .bubble {
+      background: var(--user);
+    }
+    .message.assistant .bubble {
+      background: var(--assistant);
+    }
+    .message.error .bubble {
+      color: #991b1b;
+      border-color: #fecaca;
+      background: #fef2f2;
+    }
+    .loading .bubble {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #d1d5db;
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+      flex: 0 0 auto;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .composer-wrap {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 16px 20px 22px;
+      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.92) 28%, #ffffff 100%);
     }
     .composer {
-      border-top: 1px solid var(--line);
-      padding: 18px;
-      background: rgba(255,255,255,0.55);
+      max-width: 860px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 12px 12px 12px 18px;
+      box-shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
     }
-    .hint {
-      margin-top: 10px;
-      color: var(--muted);
-      font-size: 0.88rem;
+    .input {
+      flex: 1;
+      min-height: 26px;
+      max-height: 180px;
+      border: none;
+      resize: none;
+      outline: none;
+      font: inherit;
+      color: var(--ink);
+      background: transparent;
+      line-height: 1.5;
+      padding: 6px 0;
     }
-    @media (max-width: 900px) {
-      .grid { grid-template-columns: 1fr; }
-      .header { flex-direction: column; }
+    .input::placeholder {
+      color: #9ca3af;
+    }
+    .send {
+      border: none;
+      background: var(--accent);
+      color: white;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      font-size: 1rem;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .send:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    @media (max-width: 720px) {
+      .header {
+        padding: 22px 16px 14px;
+      }
+      .messages {
+        padding: 22px 14px 148px;
+      }
+      .composer-wrap {
+        padding: 12px 14px 18px;
+      }
+      .bubble {
+        font-size: 0.95rem;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="header">
-      <div>
-        <h1 class="title">CodeDNA<br/>Playground</h1>
-        <p class="subtitle">A minimal browser UI for your locally served fine-tuned coding assistant. This page talks directly to the same <code>/v1/chat/completions</code> endpoint that editors and tools use.</p>
+  <div class="page">
+    <header class="header">
+      <h1 class="title">CodeDNA</h1>
+      <p class="subtitle">A coding assistant tuned on your repository style.</p>
+    </header>
+
+    <main id="messages" class="messages">
+      <div class="message assistant">
+        <div class="bubble">How can I help with your code?</div>
       </div>
-      <div class="status panel">
-        <strong>Server Status</strong>
-        <div id="healthText">Checking health...</div>
-      </div>
-    </div>
+    </main>
 
-    <div class="grid">
-      <aside class="panel controls">
-        <h2>Session Controls</h2>
-        <label for="systemPrompt">System Prompt</label>
-        <textarea id="systemPrompt">You are a coding assistant that writes Python in the developer's style.</textarea>
-
-        <label for="temperature">Temperature</label>
-        <input id="temperature" type="number" min="0" max="2" step="0.1" value="0.2" />
-
-        <label for="maxTokens">Max Tokens</label>
-        <input id="maxTokens" type="number" min="1" max="4096" step="1" value="200" />
-
-        <div class="button-row">
-          <button class="primary" id="sendBtn">Send</button>
-          <button class="secondary" id="clearBtn">Clear</button>
-        </div>
-        <p class="hint">Tip: keep prompts concrete and implementation-oriented for the strongest responses.</p>
-      </aside>
-
-      <section class="panel chat">
-        <div class="chat-head">
-          <h2>Conversation</h2>
-        </div>
-        <div id="messages" class="messages">
-          <div class="message assistant">
-            <span class="msg-label">Assistant</span>
-            Server is ready. Ask for a function, refactor, or debugging helper.
-          </div>
-        </div>
-        <div class="composer">
-          <label for="userPrompt">Prompt</label>
-          <textarea id="userPrompt">Write a Python retry helper with exponential backoff.</textarea>
-        </div>
-      </section>
+    <div class="composer-wrap">
+      <form id="composer" class="composer">
+        <textarea
+          id="userPrompt"
+          class="input"
+          rows="1"
+          placeholder="Message CodeDNA"
+        ></textarea>
+        <button id="sendBtn" class="send" type="submit" aria-label="Send">↑</button>
+      </form>
     </div>
   </div>
 
   <script>
-    const healthText = document.getElementById("healthText");
     const messages = document.getElementById("messages");
-    const sendBtn = document.getElementById("sendBtn");
-    const clearBtn = document.getElementById("clearBtn");
-    const systemPrompt = document.getElementById("systemPrompt");
+    const composer = document.getElementById("composer");
     const userPrompt = document.getElementById("userPrompt");
-    const temperature = document.getElementById("temperature");
-    const maxTokens = document.getElementById("maxTokens");
+    const sendBtn = document.getElementById("sendBtn");
+    const systemPrompt = "You are a coding assistant that writes Python in the developer's style.";
+    let loadingNode = null;
 
-    async function refreshHealth() {
-      try {
-        const response = await fetch("/health");
-        const payload = await response.json();
-        healthText.textContent = payload.model_loaded
-          ? "Loaded and ready on /v1/chat/completions"
-          : `Not loaded: ${payload.load_error || "unknown error"}`;
-      } catch (error) {
-        healthText.textContent = `Health check failed: ${error.message}`;
-      }
+    function autoResize() {
+      userPrompt.style.height = "auto";
+      userPrompt.style.height = Math.min(userPrompt.scrollHeight, 180) + "px";
+    }
+
+    function scrollToBottom() {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     }
 
     function addMessage(role, content, extraClass = "") {
       const wrapper = document.createElement("div");
       wrapper.className = `message ${role} ${extraClass}`.trim();
-      const label = document.createElement("span");
-      label.className = "msg-label";
-      label.textContent = role === "user" ? "User" : role === "assistant" ? "Assistant" : "System";
-      wrapper.appendChild(label);
-      wrapper.appendChild(document.createTextNode(content));
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = content;
+      wrapper.appendChild(bubble);
       messages.appendChild(wrapper);
-      messages.scrollTop = messages.scrollHeight;
+      scrollToBottom();
+      return wrapper;
+    }
+
+    function showLoading() {
+      hideLoading();
+      loadingNode = document.createElement("div");
+      loadingNode.className = "message assistant loading";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      const spinner = document.createElement("span");
+      spinner.className = "spinner";
+      const text = document.createElement("span");
+      text.textContent = "Thinking";
+      bubble.appendChild(spinner);
+      bubble.appendChild(text);
+      loadingNode.appendChild(bubble);
+      messages.appendChild(loadingNode);
+      scrollToBottom();
+    }
+
+    function hideLoading() {
+      if (loadingNode) {
+        loadingNode.remove();
+        loadingNode = null;
+      }
     }
 
     async function sendPrompt() {
       const userContent = userPrompt.value.trim();
       if (!userContent) return;
 
-      sendBtn.disabled = true;
       addMessage("user", userContent);
+      userPrompt.value = "";
+      autoResize();
+      sendBtn.disabled = true;
+      showLoading();
 
       try {
         const response = await fetch("/v1/chat/completions", {
@@ -269,11 +276,11 @@ def render_playground() -> str:
           body: JSON.stringify({
             model: "codedna-local",
             messages: [
-              { role: "system", content: systemPrompt.value.trim() },
+              { role: "system", content: systemPrompt },
               { role: "user", content: userContent }
             ],
-            max_tokens: Number(maxTokens.value || 200),
-            temperature: Number(temperature.value || 0.2)
+            max_tokens: 240,
+            temperature: 0.2
           })
         });
 
@@ -283,26 +290,31 @@ def render_playground() -> str:
         }
 
         const content = payload.choices?.[0]?.message?.content || "(empty response)";
+        hideLoading();
         addMessage("assistant", content);
       } catch (error) {
+        hideLoading();
         addMessage("assistant", error.message, "error");
       } finally {
         sendBtn.disabled = false;
+        userPrompt.focus();
       }
     }
 
-    sendBtn.addEventListener("click", sendPrompt);
-    clearBtn.addEventListener("click", () => {
-      messages.innerHTML = "";
-      addMessage("assistant", "Conversation cleared. Ready for the next prompt.");
+    composer.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await sendPrompt();
     });
-    userPrompt.addEventListener("keydown", (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-        sendPrompt();
+
+    userPrompt.addEventListener("input", autoResize);
+    userPrompt.addEventListener("keydown", async (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        await sendPrompt();
       }
     });
 
-    refreshHealth();
+    autoResize();
   </script>
 </body>
 </html>
