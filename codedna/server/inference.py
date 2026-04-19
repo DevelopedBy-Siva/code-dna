@@ -41,16 +41,16 @@ def load_model(checkpoint_path: str | None = None) -> tuple[object, object]:
     if adapter_config_path.exists():
         adapter_config = json.loads(adapter_config_path.read_text(encoding="utf-8"))
         base_model = adapter_config["base_model_name_or_path"]
-        tokenizer_source = checkpoint_dir if (checkpoint_dir / "tokenizer_config.json").exists() else Path(base_model)
+        tokenizer_source = str(checkpoint_dir) if (checkpoint_dir / "tokenizer_config.json").exists() else base_model
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_source)
         tokenizer.pad_token = tokenizer.eos_token
         base = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
-        model = PeftModel.from_pretrained(base, checkpoint_dir)
+        model = PeftModel.from_pretrained(base, str(checkpoint_dir))
         return model, tokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir)
+    tokenizer = AutoTokenizer.from_pretrained(str(checkpoint_dir))
     tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(checkpoint_dir, device_map="auto")
+    model = AutoModelForCausalLM.from_pretrained(str(checkpoint_dir), device_map="auto")
     return model, tokenizer
 
 
