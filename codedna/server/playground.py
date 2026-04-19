@@ -6,7 +6,7 @@ from __future__ import annotations
 def render_playground() -> str:
     """Return a minimal chat interface for the local model."""
 
-    return """<!DOCTYPE html>
+    return r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -77,10 +77,67 @@ def render_playground() -> str:
       padding: 16px 18px;
       border-radius: 22px;
       border: 1px solid var(--line);
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
       line-height: 1.6;
       font-size: 0.98rem;
+    }
+    .bubble p {
+      margin: 0 0 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .bubble p:last-child {
+      margin-bottom: 0;
+    }
+    .inline-code {
+      display: inline-block;
+      padding: 0.08rem 0.42rem;
+      margin: 0 0.08rem;
+      border-radius: 8px;
+      background: #eef2f7;
+      border: 1px solid #d9e1ea;
+      color: #1f2937;
+      font: 0.88em "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      vertical-align: baseline;
+    }
+    .code-block {
+      margin: 12px 0;
+      border: 1px solid #d7dce2;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+    .code-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      background: #111827;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.82rem;
+      color: #cbd5e1;
+    }
+    .code-copy {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.06);
+      color: #f8fafc;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .code-copy:disabled {
+      opacity: 0.7;
+      cursor: default;
+    }
+    .code-block pre {
+      margin: 0;
+      padding: 14px 16px 16px;
+      overflow-x: auto;
+      white-space: pre;
+      font: 0.9rem/1.55 "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
     .message.user {
       justify-content: flex-end;
@@ -211,7 +268,7 @@ def render_playground() -> str:
     const composer = document.getElementById("composer");
     const userPrompt = document.getElementById("userPrompt");
     const sendBtn = document.getElementById("sendBtn");
-    const systemPrompt = "You are a coding assistant that writes Python in the developer's style. When the user asks for code, return a complete working example unless they ask for a snippet.";
+    const systemPrompt = "You are a coding assistant that writes Python in the developer's style. Keep answers concise. When the user asks for code, return a complete working example unless they ask for a snippet. Do not add extra caveats, bullet lists, or long explanations unless the user asks for them.";
     let loadingNode = null;
 
     function autoResize() {
@@ -223,12 +280,108 @@ def render_playground() -> str:
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     }
 
+    function escapeHtml(value) {
+      return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function renderBubbleContent(bubble, content) {
+      const segments = content.split(/```([\w+-]*)\n([\s\S]*?)```/g);
+      if (segments.length === 1) {
+        appendTextBlock(bubble, content);
+        return;
+      }
+
+      for (let index = 0; index < segments.length; index += 1) {
+        if (index % 3 === 0) {
+          appendTextBlock(bubble, segments[index]);
+          continue;
+        }
+        const language = (segments[index] || "").trim() || "code";
+        const code = segments[index + 1] || "";
+        bubble.appendChild(createCodeBlock(language, code.replace(/\n$/, "")));
+      }
+    }
+
+    function appendTextBlock(container, text) {
+      const normalized = text.trim();
+      if (!normalized) return;
+      const paragraphs = normalized.split(/\n{2,}/);
+      for (const paragraph of paragraphs) {
+        const node = document.createElement("p");
+        appendInlineFormattedText(node, paragraph.trim());
+        container.appendChild(node);
+      }
+    }
+
+    function appendInlineFormattedText(container, text) {
+      const parts = text.split(/`([^`]+)`/g);
+      for (let index = 0; index < parts.length; index += 1) {
+        const value = parts[index];
+        if (!value) continue;
+        if (index % 2 === 1) {
+          const code = document.createElement("code");
+          code.className = "inline-code";
+          code.textContent = value;
+          container.appendChild(code);
+        } else {
+          container.appendChild(document.createTextNode(value));
+        }
+      }
+    }
+
+    function createCodeBlock(language, code) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "code-block";
+
+      const head = document.createElement("div");
+      head.className = "code-head";
+
+      const label = document.createElement("span");
+      label.textContent = language;
+
+      const button = document.createElement("button");
+      button.className = "code-copy";
+      button.type = "button";
+      button.textContent = "Copy";
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          button.textContent = "Copied";
+          button.disabled = true;
+          setTimeout(() => {
+            button.textContent = "Copy";
+            button.disabled = false;
+          }, 1200);
+        } catch (error) {
+          button.textContent = "Failed";
+          setTimeout(() => {
+            button.textContent = "Copy";
+          }, 1200);
+        }
+      });
+
+      head.appendChild(label);
+      head.appendChild(button);
+
+      const pre = document.createElement("pre");
+      const codeNode = document.createElement("code");
+      codeNode.innerHTML = escapeHtml(code);
+      pre.appendChild(codeNode);
+
+      wrapper.appendChild(head);
+      wrapper.appendChild(pre);
+      return wrapper;
+    }
+
     function addMessage(role, content, extraClass = "") {
       const wrapper = document.createElement("div");
       wrapper.className = `message ${role} ${extraClass}`.trim();
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.textContent = content;
+      renderBubbleContent(bubble, content);
       wrapper.appendChild(bubble);
       messages.appendChild(wrapper);
       scrollToBottom();
