@@ -88,18 +88,6 @@ def render_playground() -> str:
     .bubble p:last-child {
       margin-bottom: 0;
     }
-    .inline-code {
-      display: inline-block;
-      padding: 0.08rem 0.42rem;
-      margin: 0 0.08rem;
-      border-radius: 8px;
-      background: #eef2f7;
-      border: 1px solid #d9e1ea;
-      color: #1f2937;
-      font: 0.88em "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      white-space: pre-wrap;
-      vertical-align: baseline;
-    }
     .code-block {
       margin: 12px 0;
       border: 1px solid #d7dce2;
@@ -311,24 +299,8 @@ def render_playground() -> str:
       const paragraphs = normalized.split(/\n{2,}/);
       for (const paragraph of paragraphs) {
         const node = document.createElement("p");
-        appendInlineFormattedText(node, paragraph.trim());
+        node.textContent = paragraph.trim();
         container.appendChild(node);
-      }
-    }
-
-    function appendInlineFormattedText(container, text) {
-      const parts = text.split(/`([^`]+)`/g);
-      for (let index = 0; index < parts.length; index += 1) {
-        const value = parts[index];
-        if (!value) continue;
-        if (index % 2 === 1) {
-          const code = document.createElement("code");
-          code.className = "inline-code";
-          code.textContent = value;
-          container.appendChild(code);
-        } else {
-          container.appendChild(document.createTextNode(value));
-        }
       }
     }
 
