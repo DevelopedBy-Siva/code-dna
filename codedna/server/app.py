@@ -137,6 +137,7 @@ def _clean_completion(content: str) -> str:
     text = _dedupe_paragraphs(text)
     text = _trim_repeated_tail(text)
     text = _trim_dangling_paragraph(text)
+    text = _format_code_answer(text)
     return text.strip()
 
 
@@ -289,3 +290,61 @@ def _strip_flattened_code_lines(text: str) -> str:
             continue
         cleaned.append(line)
     return "\n".join(cleaned)
+
+
+def _format_code_answer(text: str) -> str:
+    """Collapse code-heavy answers into short prose plus one copyable code block."""
+
+    blocks = list(re.finditer(r"```([\w+-]*)\n([\s\S]*?)```", text))
+    if not blocks:
+        return text
+
+    first = blocks[0]
+    language = (first.group(1) or "").strip() or "code"
+    code = first.group(2).strip()
+    prose = (text[: first.start()] + "\n\n" + text[first.end() :]).strip()
+    explanation = _short_explanation(prose)
+
+    parts: list[str] = []
+    if explanation:
+        parts.append(explanation)
+    parts.append(f"```{language}\n{code}\n```")
+    return "\n\n".join(parts).strip()
+
+
+def _short_explanation(text: str) -> str:
+    """Pick a short human-readable explanation and drop generic filler."""
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    if not paragraphs:
+        return ""
+
+    filtered: list[str] = []
+    skip_prefixes = (
+        "here is ",
+        "below is ",
+        "the code below",
+        "please note",
+        "also,",
+        "finally,",
+        "remember to",
+        "this code is written in",
+        "you can modify",
+    )
+    for paragraph in paragraphs:
+        lowered = paragraph.lower()
+        if any(lowered.startswith(prefix) for prefix in skip_prefixes):
+            continue
+        if any(pattern in lowered for pattern in _DISCLAIMER_PATTERNS):
+            continue
+        filtered.append(paragraph)
+
+    chosen = filtered or paragraphs[:1]
+    compact = chosen[0]
+    compact = re.sub(r"\s+", " ", compact).strip()
+    sentence_match = re.match(r"^(.+?[.!?])(?:\s|$)", compact)
+    if sentence_match:
+        compact = sentence_match.group(1).strip()
+    if len(compact) > 180:
+        compact = compact[:177].rsplit(" ", 1)[0] + "..."
+    return compact
