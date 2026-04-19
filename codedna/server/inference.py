@@ -9,7 +9,6 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-
 DEFAULT_CHECKPOINT_CANDIDATES = [
     Path("model/checkpoints/final"),
     Path(".codedna/checkpoints/final"),
@@ -19,13 +18,11 @@ DEFAULT_CHECKPOINT_CANDIDATES = [
 
 def resolve_checkpoint_path(checkpoint_path: str | None = None) -> Path:
     """Resolve the active checkpoint path for serving."""
-
     if checkpoint_path:
         path = Path(checkpoint_path)
         if path.exists():
             return path
         raise FileNotFoundError(f"Checkpoint path not found: {path}")
-
     for candidate in DEFAULT_CHECKPOINT_CANDIDATES:
         if candidate.exists():
             return candidate
@@ -34,14 +31,17 @@ def resolve_checkpoint_path(checkpoint_path: str | None = None) -> Path:
 
 def load_model(checkpoint_path: str | None = None) -> tuple[object, object]:
     """Load the fine-tuned model and tokenizer from a checkpoint path."""
-
     checkpoint_dir = resolve_checkpoint_path(checkpoint_path)
     adapter_config_path = checkpoint_dir / "adapter_config.json"
 
     if adapter_config_path.exists():
         adapter_config = json.loads(adapter_config_path.read_text(encoding="utf-8"))
         base_model = adapter_config["base_model_name_or_path"]
-        tokenizer_source = str(checkpoint_dir) if (checkpoint_dir / "tokenizer_config.json").exists() else base_model
+        tokenizer_source = (
+            str(checkpoint_dir)
+            if (checkpoint_dir / "tokenizer_config.json").exists()
+            else base_model
+        )
         tokenizer = AutoTokenizer.from_pretrained(tokenizer_source)
         tokenizer.pad_token = tokenizer.eos_token
         base = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
@@ -62,34 +62,44 @@ def generate(
     temperature: float = 0.2,
     stop: list[str] | None = None,
 ) -> str:
-    device = getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    # FIX: getattr(model, "device") fails silently for PeftModel / device_map="auto"
+    # models — they have no single .device. Always derive from parameters instead.
+    device = next(model.parameters()).device
+
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    # Stop token ids — tell the model exactly where to stop
-    stop_token_ids = [tokenizer.eos_token_id]
+    # FIX: encode each stop marker fully and collect all resulting token IDs rather
+    # than grabbing only the first token of each string.  For multi-token special
+    # tokens (e.g. "<|user|>" may encode to [1, 28766, 1404, 28766, 2]) this is the
+    # difference between the stop working and being silently ignored.
+    stop_token_ids: list[int] = [tokenizer.eos_token_id]
     for token in ["<|user|>", "<|system|>", "</s>"]:
         encoded = tokenizer.encode(token, add_special_tokens=False)
-        if encoded:
-            stop_token_ids.append(encoded[0])
+        stop_token_ids.extend(encoded)
+    stop_token_ids = list(set(stop_token_ids))  # deduplicate
 
-    generation_kwargs = {
+    generation_kwargs: dict = {
         **inputs,
         "max_new_tokens": max_tokens,
         "pad_token_id": tokenizer.eos_token_id,
-        "eos_token_id": stop_token_ids,       # stop at any of these
+        "eos_token_id": stop_token_ids,
         "do_sample": temperature > 0,
-        "repetition_penalty": 1.15,            # kills duplicate code dumps
+        # FIX: 1.15 penalises normal Python patterns (self, return, if, indentation).
+        # 1.05 suppresses genuine repetition without mangling code structure.
+        "repetition_penalty": 1.05,
         "top_p": 0.95,
     }
     if temperature > 0:
         generation_kwargs["temperature"] = temperature
 
-    with torch.no_grad():
+    # FIX: torch.inference_mode() is strictly faster than torch.no_grad() — it
+    # disables autograd tracking completely, not just gradient computation.
+    with torch.inference_mode():
         outputs = model.generate(**generation_kwargs)
 
     generated = tokenizer.decode(
-        outputs[0][inputs["input_ids"].shape[1]:],
+        outputs[0][inputs["input_ids"].shape[1] :],
         skip_special_tokens=True,
     ).strip()
 

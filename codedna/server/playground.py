@@ -45,6 +45,12 @@ def render_playground() -> str:
       top: 0;
       z-index: 10;
     }
+    .header-inner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
     .title {
       margin: 0;
       font-size: clamp(1.9rem, 4vw, 2.8rem);
@@ -57,6 +63,21 @@ def render_playground() -> str:
       color: var(--muted);
       font-size: 0.98rem;
       line-height: 1.5;
+    }
+    .clear-btn {
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .clear-btn:hover {
+      color: var(--ink);
+      border-color: #9ca3af;
     }
     .messages {
       flex: 1;
@@ -228,7 +249,10 @@ def render_playground() -> str:
 <body>
   <div class="page">
     <header class="header">
-      <h1 class="title">CodeDNA</h1>
+      <div class="header-inner">
+        <h1 class="title">CodeDNA</h1>
+        <button class="clear-btn" id="clearBtn" type="button">Clear chat</button>
+      </div>
       <p class="subtitle">A coding assistant tuned on your repository style.</p>
     </header>
 
@@ -252,11 +276,18 @@ def render_playground() -> str:
   </div>
 
   <script>
-    const messages = document.getElementById("messages");
+    const messagesEl = document.getElementById("messages");
     const composer = document.getElementById("composer");
     const userPrompt = document.getElementById("userPrompt");
     const sendBtn = document.getElementById("sendBtn");
-    const systemPrompt = "You are a Python coding assistant. Answer with a single short explanation (1-2 sentences max) followed by one clean code block. Stop after the code block. No usage examples. No notes. No comments explaining the code after the block.";
+    const clearBtn = document.getElementById("clearBtn");
+
+    // FIX: maintain full conversation history so the model has context across turns,
+    // exactly like the OpenAI / GPT API works.  Every request sends the complete
+    // history; the server is stateless but the browser holds the state.
+    const SYSTEM_PROMPT = "You are a Python coding assistant. Answer with a short explanation followed by one clean, complete code block. Do not cut the code short — always finish it. No usage examples or extra notes after the code block.";
+
+    let history = []; // array of {role, content} objects
     let loadingNode = null;
 
     function autoResize() {
@@ -281,7 +312,6 @@ def render_playground() -> str:
         appendTextBlock(bubble, content);
         return;
       }
-
       for (let index = 0; index < segments.length; index += 1) {
         if (index % 3 === 0) {
           appendTextBlock(bubble, segments[index]);
@@ -329,9 +359,7 @@ def render_playground() -> str:
           }, 1200);
         } catch (error) {
           button.textContent = "Failed";
-          setTimeout(() => {
-            button.textContent = "Copy";
-          }, 1200);
+          setTimeout(() => { button.textContent = "Copy"; }, 1200);
         }
       });
 
@@ -355,7 +383,7 @@ def render_playground() -> str:
       bubble.className = "bubble";
       renderBubbleContent(bubble, content);
       wrapper.appendChild(bubble);
-      messages.appendChild(wrapper);
+      messagesEl.appendChild(wrapper);
       scrollToBottom();
       return wrapper;
     }
@@ -373,7 +401,7 @@ def render_playground() -> str:
       bubble.appendChild(spinner);
       bubble.appendChild(text);
       loadingNode.appendChild(bubble);
-      messages.appendChild(loadingNode);
+      messagesEl.appendChild(loadingNode);
       scrollToBottom();
     }
 
@@ -384,15 +412,36 @@ def render_playground() -> str:
       }
     }
 
+    function resetChat() {
+      history = [];
+      messagesEl.innerHTML = "";
+      const welcome = document.createElement("div");
+      welcome.className = "message assistant";
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = "How can I help with your code?";
+      welcome.appendChild(bubble);
+      messagesEl.appendChild(welcome);
+    }
+
     async function sendPrompt() {
       const userContent = userPrompt.value.trim();
       if (!userContent) return;
 
+      // Add user turn to UI and history
       addMessage("user", userContent);
+      history.push({ role: "user", content: userContent });
+
       userPrompt.value = "";
       autoResize();
       sendBtn.disabled = true;
       showLoading();
+
+      // Build full message array: system prompt + entire conversation history
+      const messages = [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...history,
+      ];
 
       try {
         const response = await fetch("/v1/chat/completions", {
@@ -400,26 +449,34 @@ def render_playground() -> str:
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: "codedna-local",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userContent }
-            ],
-            max_tokens: 300,
-            temperature: 0.2
-          })
+            messages,
+            // FIX: 300 was too low for any real code response — bumped to 700.
+            // Adjust higher if your model/hardware can handle it.
+            max_tokens: 700,
+            temperature: 0.2,
+          }),
         });
 
+        // FIX: always read the body before checking ok so error details are
+        // available in the message rather than a generic "Request failed".
         const payload = await response.json();
         if (!response.ok) {
-          throw new Error(payload.detail || "Request failed");
+          const detail = payload.detail || payload.message || JSON.stringify(payload);
+          throw new Error(`${response.status}: ${detail}`);
         }
 
         const content = payload.choices?.[0]?.message?.content || "(empty response)";
         hideLoading();
         addMessage("assistant", content);
+
+        // Store assistant reply in history so future turns have full context
+        history.push({ role: "assistant", content });
       } catch (error) {
         hideLoading();
         addMessage("assistant", error.message, "error");
+        // Remove the user message from history on failure so the broken
+        // exchange doesn't corrupt future turns
+        history.pop();
       } finally {
         sendBtn.disabled = false;
         userPrompt.focus();
@@ -429,6 +486,10 @@ def render_playground() -> str:
     composer.addEventListener("submit", async (event) => {
       event.preventDefault();
       await sendPrompt();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      resetChat();
     });
 
     userPrompt.addEventListener("input", autoResize);
