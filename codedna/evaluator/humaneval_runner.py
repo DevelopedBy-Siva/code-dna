@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import tempfile
+import inspect
 
 import torch
 
@@ -21,6 +21,7 @@ def run_humaneval(model: object, tokenizer: object, k: int = 1) -> float:
         return 0.0
 
     device = getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    check_signature = inspect.signature(check_correctness)
     results: list[bool] = []
     for _, problem in list(problems.items()):
         passed = False
@@ -31,17 +32,32 @@ def run_humaneval(model: object, tokenizer: object, k: int = 1) -> float:
                 outputs = model.generate(
                     **inputs,
                     max_new_tokens=256,
-                    temperature=0.2,
                     do_sample=False,
                     pad_token_id=tokenizer.eos_token_id,
                 )
             completion = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True)
             candidate = problem["prompt"] + completion
-            with tempfile.TemporaryDirectory() as tempdir:
-                outcome = check_correctness(problem, candidate, timeout=3.0, tmp_dir=tempdir)
+            outcome = _run_check_correctness(check_correctness, check_signature, problem, candidate)
             if outcome["passed"]:
                 passed = True
                 break
         results.append(passed)
 
     return round((sum(results) / len(results)) * 100, 1)
+
+
+def _run_check_correctness(check_correctness: object, signature: inspect.Signature, problem: dict, candidate: str) -> dict:
+    """Call human_eval.check_correctness across version-specific signatures."""
+
+    parameters = signature.parameters
+    kwargs: dict[str, object] = {}
+    if "timeout" in parameters:
+        kwargs["timeout"] = 3.0
+    if "completion_id" in parameters:
+        kwargs["completion_id"] = None
+    try:
+        return check_correctness(problem, candidate, **kwargs)
+    except TypeError:
+        if "timeout" in parameters:
+            return check_correctness(problem, candidate, 3.0)
+        return check_correctness(problem, candidate)
