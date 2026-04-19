@@ -8,8 +8,10 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from starlette.responses import HTMLResponse
 
 from codedna.server.inference import generate, load_model
+from codedna.server.playground import render_playground
 
 
 class ChatMessage(BaseModel):
@@ -55,6 +57,10 @@ def create_app(checkpoint_path: str | None = None) -> FastAPI:
         if state.get("load_error"):
             response["load_error"] = str(state["load_error"])
         return response
+
+    @app.get("/", response_class=HTMLResponse)
+    def playground() -> str:
+        return render_playground()
 
     @app.get("/v1/models")
     def list_models() -> dict:
