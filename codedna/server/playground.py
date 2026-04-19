@@ -256,7 +256,7 @@ def render_playground() -> str:
     const composer = document.getElementById("composer");
     const userPrompt = document.getElementById("userPrompt");
     const sendBtn = document.getElementById("sendBtn");
-    const systemPrompt = "You are a coding assistant. Answer concisely. When returning code, write a 1-2 sentence explanation first, then one fenced code block. Do not repeat the code in prose. Do not add disclaimers.";
+    const systemPrompt = "You are a Python coding assistant. Write clean, concise code. Return working examples.";
     let loadingNode = null;
 
     function autoResize() {

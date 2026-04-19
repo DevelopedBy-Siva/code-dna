@@ -55,24 +55,32 @@ def load_model(checkpoint_path: str | None = None) -> tuple[object, object]:
 
 
 def generate(
-    model: object,
-    tokenizer: object,
+    model,
+    tokenizer,
     prompt: str,
     max_tokens: int = 512,
     temperature: float = 0.2,
     stop: list[str] | None = None,
 ) -> str:
-    """Generate a completion for a prompt."""
-
     device = getattr(model, "device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
-    inputs = {key: value.to(device) for key, value in inputs.items()}
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    # Stop token ids — tell the model exactly where to stop
+    stop_token_ids = [tokenizer.eos_token_id]
+    for token in ["<|user|>", "<|system|>", "</s>"]:
+        encoded = tokenizer.encode(token, add_special_tokens=False)
+        if encoded:
+            stop_token_ids.append(encoded[0])
 
     generation_kwargs = {
         **inputs,
         "max_new_tokens": max_tokens,
         "pad_token_id": tokenizer.eos_token_id,
+        "eos_token_id": stop_token_ids,       # stop at any of these
         "do_sample": temperature > 0,
+        "repetition_penalty": 1.15,            # kills duplicate code dumps
+        "top_p": 0.95,
     }
     if temperature > 0:
         generation_kwargs["temperature"] = temperature
@@ -80,9 +88,15 @@ def generate(
     with torch.no_grad():
         outputs = model.generate(**generation_kwargs)
 
-    generated = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1] :], skip_special_tokens=True).strip()
+    generated = tokenizer.decode(
+        outputs[0][inputs["input_ids"].shape[1]:],
+        skip_special_tokens=True,
+    ).strip()
+
+    # Trim at stop strings if provided
     if stop:
         for marker in stop:
             if marker and marker in generated:
                 generated = generated.split(marker, 1)[0]
+
     return generated.strip()
