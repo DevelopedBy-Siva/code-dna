@@ -211,7 +211,7 @@ def render_playground() -> str:
     const composer = document.getElementById("composer");
     const userPrompt = document.getElementById("userPrompt");
     const sendBtn = document.getElementById("sendBtn");
-    const systemPrompt = "You are a coding assistant that writes Python in the developer's style.";
+    const systemPrompt = "You are a coding assistant that writes Python in the developer's style. When the user asks for code, return a complete working example unless they ask for a snippet.";
     let loadingNode = null;
 
     function autoResize() {
@@ -279,7 +279,7 @@ def render_playground() -> str:
               { role: "system", content: systemPrompt },
               { role: "user", content: userContent }
             ],
-            max_tokens: 240,
+            max_tokens: 1024,
             temperature: 0.2
           })
         });
