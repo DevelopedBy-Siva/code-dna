@@ -18,11 +18,13 @@ from codedna.evaluator.style_scorer import score_samples
 console = Console()
 
 
-def run_command(quick: bool = typer.Option(False, "--quick")) -> None:
+def run_command(
+    quick: bool = typer.Option(False, "--quick"),
+    adapter_path: Path = typer.Option(Path(".codedna/checkpoints/final"), "--adapter-path"),
+) -> None:
     """Run CodeDNA evaluation tasks."""
 
     base_model = "mistralai/Mistral-7B-v0.1"
-    adapter_path = Path(".codedna") / "checkpoints" / "final"
     dataset_path = Path(".codedna") / "dataset" / "val.jsonl"
     style_profile = json.loads((Path(".codedna") / "style_profile.json").read_text(encoding="utf-8"))
 
@@ -37,8 +39,7 @@ def run_command(quick: bool = typer.Option(False, "--quick")) -> None:
         raise RuntimeError(f"Unable to load base model for evaluation: {exc}") from exc
 
     try:
-        ft_tokenizer = AutoTokenizer.from_pretrained(adapter_path)
-        ft_tokenizer.pad_token = ft_tokenizer.eos_token
+        ft_tokenizer = base_tokenizer
         ft_base = AutoModelForCausalLM.from_pretrained(base_model, local_files_only=quick, device_map="auto")
         ft = PeftModel.from_pretrained(ft_base, adapter_path)
     except Exception as exc:
@@ -59,21 +60,22 @@ def run_command(quick: bool = typer.Option(False, "--quick")) -> None:
     save_report({"base": base_metrics, "finetuned": ft_metrics}, Path(".codedna") / "eval_report.json")
 
 
-def compare_command(prompt: str = typer.Option("", "--prompt")) -> None:
+def compare_command(
+    prompt: str = typer.Option("", "--prompt"),
+    adapter_path: Path = typer.Option(Path(".codedna/checkpoints/final"), "--adapter-path"),
+) -> None:
     """Compare base and fine-tuned models."""
 
     if not prompt:
         raise typer.BadParameter("Provide a prompt with --prompt.")
 
     base_model = "mistralai/Mistral-7B-v0.1"
-    adapter_path = Path(".codedna") / "checkpoints" / "final"
 
     base_tokenizer = AutoTokenizer.from_pretrained(base_model)
     base_tokenizer.pad_token = base_tokenizer.eos_token
     base = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
 
-    ft_tokenizer = AutoTokenizer.from_pretrained(adapter_path)
-    ft_tokenizer.pad_token = ft_tokenizer.eos_token
+    ft_tokenizer = base_tokenizer
     ft_base = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto")
     ft = PeftModel.from_pretrained(ft_base, adapter_path)
 
