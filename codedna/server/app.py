@@ -115,6 +115,10 @@ _DISCLAIMER_PATTERNS = (
     "please use this code at your own risk",
     "in no event will the author be liable",
     "the entire risk as to the quality and performance",
+    "please test and debug your code before using it",
+    "this code assumes that the requests are coming from a single source",
+    "does not handle any persistence or distributed locking",
+    "please replace `max_requests` and `interval_seconds`",
 )
 
 
@@ -127,8 +131,12 @@ def _clean_completion(content: str) -> str:
 
     text = re.sub(r"^\s*assistant:\s*", "", text, flags=re.IGNORECASE)
     text = _truncate_on_role_marker(text)
+    text = _normalize_inline_code_dump(text)
+    text = _strip_flattened_code_lines(text)
     text = _dedupe_code_fences(text)
     text = _dedupe_paragraphs(text)
+    text = _trim_repeated_tail(text)
+    text = _trim_dangling_paragraph(text)
     return text.strip()
 
 
@@ -195,3 +203,89 @@ def _dedupe_paragraphs(text: str) -> str:
 
     result = "".join(cleaned).strip()
     return re.sub(r"\n{3,}", "\n\n", result)
+
+
+def _normalize_inline_code_dump(text: str) -> str:
+    """Wrap loose `python` code dumps so they can be handled as a single block."""
+
+    if "```" in text:
+        return text
+
+    marker = "python\n"
+    start = text.find(marker)
+    if start == -1:
+        return text
+
+    end_markers = ("\n\nIn this code", "\n\nYou can use", "\n\nPlease note", "\n\nThis code")
+    end = len(text)
+    for candidate in end_markers:
+        index = text.find(candidate, start + len(marker))
+        if index != -1:
+            end = min(end, index)
+
+    code = text[start + len(marker) : end].strip()
+    if not code or "class " not in code and "def " not in code and "import " not in code:
+        return text
+
+    wrapped = f"```python\n{code}\n```"
+    return text[:start] + wrapped + text[end:]
+
+
+def _trim_repeated_tail(text: str) -> str:
+    """Drop a repeated trailing section when the model starts restating itself."""
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    if len(paragraphs) < 2:
+        return text
+
+    for index in range(1, len(paragraphs)):
+        current = paragraphs[index]
+        for previous in paragraphs[:index]:
+            if current == previous:
+                return "\n\n".join(paragraphs[:index]).strip()
+            if len(current) > 40 and previous.startswith(current):
+                return "\n\n".join(paragraphs[:index]).strip()
+            if len(previous) > 40 and current.startswith(previous):
+                return "\n\n".join(paragraphs[:index]).strip()
+
+    return text
+
+
+def _trim_dangling_paragraph(text: str) -> str:
+    """Drop an obviously truncated final paragraph."""
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    if not paragraphs:
+        return text
+
+    last = paragraphs[-1]
+    lowered = last.lower()
+    looks_incomplete = last[-1:] not in {".", "!", "?", "`", ")", '"'}
+    filler_prefixes = (
+        "please note",
+        "please replace",
+        "this code assumes",
+        "also, please note",
+    )
+    if looks_incomplete and any(lowered.startswith(prefix) for prefix in filler_prefixes):
+        paragraphs = paragraphs[:-1]
+    return "\n\n".join(paragraphs).strip()
+
+
+def _strip_flattened_code_lines(text: str) -> str:
+    """Remove one-line code dumps that duplicate a nearby formatted code block."""
+
+    lines = text.splitlines()
+    cleaned: list[str] = []
+    for line in lines:
+        normalized = " ".join(line.split())
+        looks_like_flat_code = (
+            len(normalized) > 180
+            and " class " in f" {normalized} "
+            and " def " in f" {normalized} "
+            and ("import " in normalized or "return " in normalized)
+        )
+        if looks_like_flat_code:
+            continue
+        cleaned.append(line)
+    return "\n".join(cleaned)
