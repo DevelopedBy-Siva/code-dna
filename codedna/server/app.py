@@ -217,12 +217,28 @@ def _normalize_inline_code_dump(text: str) -> str:
     if start == -1:
         return text
 
-    end_markers = ("\n\nIn this code", "\n\nYou can use", "\n\nPlease note", "\n\nThis code")
+    end_markers = (
+        "\n\nIn this code",
+        "\n\nYou can use",
+        "\n\nPlease note",
+        "\n\nThis code",
+        "\n\nAlso,",
+        "\n\nFinally,",
+        "\n\nRemember to",
+    )
     end = len(text)
     for candidate in end_markers:
         index = text.find(candidate, start + len(marker))
         if index != -1:
             end = min(end, index)
+
+    flat_duplicate = re.search(
+        r"\n\s*import\s+\w+[^\n]*\bclass\b[^\n]*\bdef\b[^\n]*\breturn\b[^\n]*",
+        text[start + len(marker) :],
+    )
+    if flat_duplicate:
+        duplicate_start = start + len(marker) + flat_duplicate.start()
+        end = min(end, duplicate_start)
 
     code = text[start + len(marker) : end].strip()
     if not code or "class " not in code and "def " not in code and "import " not in code:

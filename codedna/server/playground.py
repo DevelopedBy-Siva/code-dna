@@ -93,8 +93,8 @@ def render_playground() -> str:
       border: 1px solid #d7dce2;
       border-radius: 16px;
       overflow: hidden;
-      background: #0f172a;
-      color: #e5e7eb;
+      background: #f3f4f6;
+      color: #1f2937;
     }
     .code-head {
       display: flex;
@@ -102,15 +102,15 @@ def render_playground() -> str:
       justify-content: space-between;
       gap: 12px;
       padding: 10px 14px;
-      background: #111827;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: #e5e7eb;
+      border-bottom: 1px solid #d1d5db;
       font-size: 0.82rem;
-      color: #cbd5e1;
+      color: #4b5563;
     }
     .code-copy {
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.06);
-      color: #f8fafc;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #374151;
       border-radius: 999px;
       padding: 5px 10px;
       font: inherit;
