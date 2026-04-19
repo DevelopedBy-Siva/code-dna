@@ -98,13 +98,41 @@ def create_app(checkpoint_path: str | None = None) -> FastAPI:
 
 
 def _format_messages_to_prompt(messages: list[ChatMessage]) -> str:
-    """Flatten chat messages into a single prompt string."""
+    """Format chat messages using Mistral instruct template.
 
-    parts = []
+    Mistral-7B-v0.1 expects:
+      <s>[INST] {user} [/INST] {assistant}</s>[INST] {user} [/INST]
+    System messages are prepended into the first user turn.
+    """
+    system_parts: list[str] = []
+    turns: list[ChatMessage] = []
+
     for message in messages:
-        parts.append(f"{message.role}: {message.content}")
-    parts.append("assistant:")
-    return "\n".join(parts)
+        if message.role == "system":
+            system_parts.append(message.content.strip())
+        else:
+            turns.append(message)
+
+    system_prefix = "\n".join(system_parts) + "\n\n" if system_parts else ""
+    parts: list[str] = ["<s>"]
+    i = 0
+    first_user = True
+
+    while i < len(turns):
+        turn = turns[i]
+        if turn.role == "user":
+            content = turn.content.strip()
+            if first_user and system_prefix:
+                content = system_prefix + content
+                first_user = False
+            parts.append(f"[INST] {content} [/INST]")
+            if i + 1 < len(turns) and turns[i + 1].role == "assistant":
+                parts.append(f" {turns[i + 1].content.strip()}</s>")
+                i += 2
+                continue
+        i += 1
+
+    return "".join(parts)
 
 
 _DISCLAIMER_PATTERNS = (
