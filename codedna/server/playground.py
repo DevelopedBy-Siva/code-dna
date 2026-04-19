@@ -256,7 +256,7 @@ def render_playground() -> str:
     const composer = document.getElementById("composer");
     const userPrompt = document.getElementById("userPrompt");
     const sendBtn = document.getElementById("sendBtn");
-    const systemPrompt = "You are a Python coding assistant. Write clean, concise code. Return working examples.";
+    const systemPrompt = "You are a Python coding assistant. Answer with a single short explanation (1-2 sentences max) followed by one clean code block. Stop after the code block. No usage examples. No notes. No comments explaining the code after the block.";
     let loadingNode = null;
 
     function autoResize() {
@@ -404,7 +404,7 @@ def render_playground() -> str:
               { role: "system", content: systemPrompt },
               { role: "user", content: userContent }
             ],
-            max_tokens: 640,
+            max_tokens: 300,
             temperature: 0.2
           })
         });
