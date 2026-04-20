@@ -62,39 +62,28 @@ def generate(
     temperature: float = 0.2,
     stop: list[str] | None = None,
 ) -> str:
-    # FIX: getattr(model, "device") fails silently for PeftModel / device_map="auto"
-    # models — they have no single .device. Always derive from parameters instead.
+    # PEFT / sharded models may not expose a reliable single `.device`.
     device = next(model.parameters()).device
 
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
     inputs = {k: v.to(device) for k, v in inputs.items()}
 
-    # FIX: encode each stop marker fully and collect all resulting token IDs rather
-    # than grabbing only the first token of each string.  For multi-token special
-    # tokens (e.g. "<|user|>" may encode to [1, 28766, 1404, 28766, 2]) this is the
-    # difference between the stop working and being silently ignored.
-    stop_token_ids: list[int] = [tokenizer.eos_token_id]
-    for token in ["<|user|>", "<|system|>", "</s>"]:
-        encoded = tokenizer.encode(token, add_special_tokens=False)
-        stop_token_ids.extend(encoded)
-    stop_token_ids = list(set(stop_token_ids))  # deduplicate
-
     generation_kwargs: dict = {
         **inputs,
         "max_new_tokens": max_tokens,
         "pad_token_id": tokenizer.eos_token_id,
-        "eos_token_id": stop_token_ids,
+        # `eos_token_id` only supports token-level stopping. Passing every token
+        # from strings like "<|user|>" makes generation stop as soon as *any one*
+        # of those IDs appears, which truncates code mid-line. We stop only on the
+        # model EOS token here, then trim role markers from decoded text below.
+        "eos_token_id": tokenizer.eos_token_id,
         "do_sample": temperature > 0,
-        # FIX: 1.15 penalises normal Python patterns (self, return, if, indentation).
-        # 1.05 suppresses genuine repetition without mangling code structure.
         "repetition_penalty": 1.05,
         "top_p": 0.95,
     }
     if temperature > 0:
         generation_kwargs["temperature"] = temperature
 
-    # FIX: torch.inference_mode() is strictly faster than torch.no_grad() — it
-    # disables autograd tracking completely, not just gradient computation.
     with torch.inference_mode():
         outputs = model.generate(**generation_kwargs)
 
