@@ -249,7 +249,7 @@ def train(model, tokenizer, train_dataset, eval_dataset):
 
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         dataset_text_field="text",
