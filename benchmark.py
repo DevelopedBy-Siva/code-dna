@@ -36,29 +36,14 @@ Complete the following Python function. Only return the completed function body,
 """
 
 def load_model(model_path: str):
-    """Load the model and tokenizer."""
     logger.info(f"Loading model: {model_path}")
-
-    try:
-        from unsloth import FastLanguageModel
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=model_path,
-            max_seq_length=2048,
-            load_in_4bit=False,
-            dtype=torch.bfloat16,
-        )
-        FastLanguageModel.for_inference(model)
-        logger.info("Loaded with Unsloth (fast inference mode)")
-    except Exception:
-        logger.info("Unsloth not available, using HuggingFace transformers")
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
-            trust_remote_code=True,
-        )
-
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+        trust_remote_code=True,
+    )
     model.eval()
     return model, tokenizer
 
