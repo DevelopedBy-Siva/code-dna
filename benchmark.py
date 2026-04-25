@@ -35,30 +35,39 @@ Complete the following Python function. Only return the completed function body,
 ### Response:
 """
 
-def load_model(model_path: str):
-    """Load the model and tokenizer."""
+DEFAULT_TOKENIZER = "Qwen/Qwen2.5-Coder-14B-Instruct"
+
+
+def load_model(model_path: str, tokenizer_path: Optional[str] = None):
     logger.info(f"Loading model: {model_path}")
+    tokenizer_source = tokenizer_path or model_path
 
     try:
-        from unsloth import FastLanguageModel
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=model_path,
-            max_seq_length=2048,
-            load_in_4bit=False,
-            dtype=torch.bfloat16,
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_source,
+            trust_remote_code=True,
         )
-        FastLanguageModel.for_inference(model)
-        logger.info("Loaded with Unsloth (fast inference mode)")
-    except Exception:
-        logger.info("Unsloth not available, using HuggingFace transformers")
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        model = AutoModelForCausalLM.from_pretrained(
+    except Exception as e:
+        if tokenizer_path:
+            raise
+
+        logger.warning(
+            "Failed to load tokenizer from %s (%s). Falling back to base tokenizer: %s",
             model_path,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
+            e,
+            DEFAULT_TOKENIZER,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(
+            DEFAULT_TOKENIZER,
             trust_remote_code=True,
         )
 
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        torch_dtype=torch.bfloat16,
+        device_map="auto",
+        trust_remote_code=True,
+    )
     model.eval()
     return model, tokenizer
 
@@ -147,6 +156,7 @@ def pass_at_k(n: int, c: int, k: int) -> float:
 def run_benchmark(
     model_path: str,
     label: str,
+    tokenizer_path: Optional[str] = None,
     num_samples: int = 1,
     temperature: float = 0.2,
     max_problems: Optional[int] = None,
@@ -165,7 +175,7 @@ def run_benchmark(
     logger.info(f"Problems to evaluate: {len(dataset)}")
 
     # Then load the model we want to score.
-    model, tokenizer = load_model(model_path)
+    model, tokenizer = load_model(model_path, tokenizer_path=tokenizer_path)
 
     results = []
     start_time = time.time()
@@ -303,6 +313,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="HumanEval Benchmarking for Fine-tuned LLMs")
 
     parser.add_argument("--model",       type=str,  default=None,       help="Model path or HuggingFace name")
+    parser.add_argument("--tokenizer",   type=str,  default=None,       help="Optional tokenizer path or HuggingFace name")
     parser.add_argument("--label",       type=str,  default="baseline",  help="Label: 'baseline' or 'finetuned'")
     parser.add_argument("--samples",     type=int,  default=1,           help="Samples per problem (1=pass@1, 10=pass@1+pass@10)")
     parser.add_argument("--temperature", type=float,default=0.2,         help="Generation temperature")
@@ -331,6 +342,7 @@ def main():
     run_benchmark(
         model_path=args.model,
         label=args.label,
+        tokenizer_path=args.tokenizer,
         num_samples=args.samples,
         temperature=args.temperature,
         max_problems=args.max,
