@@ -69,6 +69,7 @@ INFERENCE_TEMPLATE = """### Instruction:
 """
 
 def format_prompt(example, for_inference=False):
+    """Build one prompt string."""
     input_section = f"\n\n### Input:\n{example['input']}" if example.get("input", "").strip() else ""
     template = INFERENCE_TEMPLATE if for_inference else PROMPT_TEMPLATE
     return template.format(
@@ -78,6 +79,7 @@ def format_prompt(example, for_inference=False):
     )
 
 def load_and_merge_datasets() -> Dataset:
+    """Load and merge all datasets."""
     logger.info("Loading datasets...")
     all_datasets = []
 
@@ -140,6 +142,7 @@ def load_and_merge_datasets() -> Dataset:
 
 
 def clean_dataset(dataset: Dataset) -> Dataset:
+    """Filter and deduplicate the dataset."""
     logger.info("Cleaning dataset...")
 
     python_keywords = ["def ", "import ", "class ", "return ", "print(", "for ", "if "]
@@ -173,6 +176,7 @@ def clean_dataset(dataset: Dataset) -> Dataset:
 
 
 def prepare_dataset(dataset: Dataset):
+    """Prepare train and validation splits."""
     # Keep the dataset manageable if we set a cap.
     if cfg.max_samples and len(dataset) > cfg.max_samples:
         dataset = dataset.shuffle(seed=cfg.seed).select(range(cfg.max_samples))
@@ -186,6 +190,7 @@ def prepare_dataset(dataset: Dataset):
     return split["train"], split["test"]
 
 def load_model():
+    """Load the model and tokenizer."""
     logger.info(f"Loading model: {cfg.model_name}")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=cfg.model_name,
@@ -213,6 +218,7 @@ def load_model():
     return model, tokenizer
 
 def train(model, tokenizer, train_dataset, eval_dataset):
+    """Train the model."""
     logger.info("Starting training...")
 
     training_args = TrainingArguments(
@@ -267,6 +273,7 @@ def train(model, tokenizer, train_dataset, eval_dataset):
     return trainer
 
 def save_model(model, tokenizer, trainer):
+    """Save adapters, merged model, and metrics."""
     # Save the adapter first.
     lora_path = os.path.join(cfg.output_dir, "lora_adapter")
     model.save_pretrained(lora_path)
@@ -286,6 +293,7 @@ def save_model(model, tokenizer, trainer):
     logger.info(f"Metrics saved to: {metrics_path}")
 
 def test_inference(model, tokenizer):
+    """Run a quick inference test."""
     logger.info("Running inference test...")
     FastLanguageModel.for_inference(model)
 
@@ -317,6 +325,7 @@ def test_inference(model, tokenizer):
         print(response)
 
 def main():
+    """Run the full training flow."""
     logger.info("=" * 60)
     logger.info("Python Code Generation Fine-tuning")
     logger.info("=" * 60)
