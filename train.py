@@ -205,7 +205,6 @@ def load_model():
 def train(model, tokenizer, train_dataset, eval_dataset):
     """Train the model."""
     logger.info("Building SFTConfig (TRL 1.2)...")
-
     sft_config = SFTConfig(
         output_dir                  = cfg.output_dir,
         num_train_epochs            = cfg.num_train_epochs,
@@ -220,6 +219,7 @@ def train(model, tokenizer, train_dataset, eval_dataset):
         fp16                        = cfg.fp16,
         logging_steps               = cfg.logging_steps,
         save_steps                  = cfg.save_steps,
+        save_strategy               = "steps",          # ← add this
         save_total_limit            = cfg.save_total_limit,
         eval_strategy               = "steps",
         eval_steps                  = cfg.eval_steps,
@@ -230,7 +230,7 @@ def train(model, tokenizer, train_dataset, eval_dataset):
         report_to                   = "none",
         dataloader_num_workers      = 4,
         dataset_text_field          = "text",
-        max_seq_length              = cfg.max_seq_length,
+        max_length                  = cfg.max_seq_length,
     )
 
     trainer = SFTTrainer(
