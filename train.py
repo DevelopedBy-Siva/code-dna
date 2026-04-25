@@ -21,6 +21,7 @@ Install:
 import unsloth  # MUST be first import
 
 import os
+import inspect
 import torch
 import logging
 from dataclasses import dataclass
@@ -330,15 +331,27 @@ def train(model, tokenizer, train_dataset, eval_dataset):
         label_pad_token_id = -100,      # -100 = ignored in loss computation
     )
 
-    trainer = Trainer(
-        model         = model,
-        tokenizer     = tokenizer,
-        args          = training_args,
-        train_dataset = train_dataset,
-        eval_dataset  = eval_dataset,
-        data_collator = collator,
-        callbacks     = [EarlyStoppingCallback(early_stopping_patience=3)],
-    )
+    trainer_kwargs = {
+        "model": model,
+        "args": training_args,
+        "train_dataset": train_dataset,
+        "eval_dataset": eval_dataset,
+        "data_collator": collator,
+        "callbacks": [EarlyStoppingCallback(early_stopping_patience=3)],
+    }
+
+    trainer_init_params = inspect.signature(Trainer.__init__).parameters
+    if "processing_class" in trainer_init_params:
+        trainer_kwargs["processing_class"] = tokenizer
+    elif "tokenizer" in trainer_init_params:
+        trainer_kwargs["tokenizer"] = tokenizer
+    else:
+        logger.warning(
+            "Trainer.__init__ accepts neither 'processing_class' nor 'tokenizer'; "
+            "continuing without attaching the tokenizer."
+        )
+
+    trainer = Trainer(**trainer_kwargs)
 
     if torch.cuda.is_available():
         gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1e9
