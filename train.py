@@ -235,7 +235,7 @@ def train(model, tokenizer, train_dataset, eval_dataset):
         logging_steps=cfg.logging_steps,
         save_steps=cfg.save_steps,
         eval_steps=cfg.eval_steps,
-        evaluation_strategy="steps",
+        eval_strategy="steps",
         save_strategy="steps",
         save_total_limit=cfg.save_total_limit,
         load_best_model_at_end=cfg.load_best_model_at_end,
