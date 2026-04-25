@@ -245,7 +245,6 @@ def train(model, tokenizer, train_dataset, eval_dataset):
         seed=cfg.seed,
         report_to="none",
         dataloader_num_workers=4,
-        group_by_length=True,
     )
 
     trainer = SFTTrainer(
