@@ -58,14 +58,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def format_prompt(example):
-    """Build one training prompt."""
     input_section = f"\n\n### Input:\n{example['input'].strip()}" if example.get("input", "").strip() else ""
     return {
         "text": (
             f"### Instruction:\n{example.get('instruction','').strip()}"
             f"{input_section}\n\n"
             f"### Response:\n{example.get('output','').strip()}"
-            f"<|endoftext|>"
+            f"<|im_end|>"
         )
     }
 
