@@ -56,7 +56,7 @@ class Config:
 
     # Training
     output_dir: str                  = "./qwen-python-finetuned"
-    num_train_epochs: int            = 3
+    num_train_epochs: int            = 1
     per_device_train_batch_size: int = 4
     gradient_accumulation_steps: int = 4        # effective batch = 16
     warmup_steps: int                = 100
