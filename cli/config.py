@@ -1,14 +1,17 @@
 """Runtime configuration for the CLI."""
 
 import os
+from pathlib import Path
 from dataclasses import dataclass
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 @dataclass
 class Config:
     model_path: str = os.environ.get(
         "PYASSIST_MODEL_PATH",
-        "./qwen-python-finetuned/merged_model",
+        str(BASE_DIR / "model" / "qwen-python-finetuned" / "merged_model"),
     )
 
     max_seq_length: int   = 4096

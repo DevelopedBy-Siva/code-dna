@@ -109,7 +109,6 @@ def load_and_merge_datasets() -> Dataset:
     except Exception as e:
         logger.warning(f"  Magicoder failed: {e}")
 
-    # 5. CodeAlpaca — filter Python
     try:
         ds = load_dataset("sahil2801/CodeAlpaca-20k", split="train")
         ds = ds.filter(lambda x: "python" in x.get("output", "").lower())
@@ -324,11 +323,11 @@ def save_model(model, tokenizer):
 
     model.save_pretrained(lora_path)
     tokenizer.save_pretrained(lora_path)
-    logger.info(f"LoRA adapter  → {lora_path}")
+    logger.info(f"LoRA adapter  -> {lora_path}")
 
     logger.info("Merging LoRA weights into base model...")
     model.save_pretrained_merged(merged_path, tokenizer, save_method="merged_16bit")
-    logger.info(f"Merged model  → {merged_path}")
+    logger.info(f"Merged model  -> {merged_path}")
 
 def test_inference(model, tokenizer):
     """Run a small generation smoke test."""
@@ -372,7 +371,7 @@ def main():
     save_model(model, tokenizer)
     test_inference(model, tokenizer)
 
-    logger.info(f"All done → {cfg.output_dir}")
+    logger.info(f"All done -> {cfg.output_dir}")
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ def run(
 
     console.print()
     console.print(Panel(
-        "[bold green]🐍 PyAssist — Python Code Chat[/bold green]\n"
+        "[bold green]PyAssist - Python Code Chat[/bold green]\n"
         "[dim]Commands: /clear  /save  /quit[/dim]",
         border_style="green",
     ))

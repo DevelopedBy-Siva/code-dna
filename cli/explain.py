@@ -26,17 +26,17 @@ def run(
     else:
         path = Path(file)
         if not path.exists():
-            console.print(f"[red]❌ File not found: {file}[/red]")
+            console.print(f"[red]File not found: {file}[/red]")
             raise typer.Exit(1)
         code   = path.read_text()
         source = path.name
 
     if not code.strip():
-        console.print("[red]❌ File is empty[/red]")
+        console.print("[red]File is empty[/red]")
         raise typer.Exit(1)
 
     if len(code) > 3000:
-        console.print(f"[yellow]⚠ File is long — using first 3000 chars[/yellow]")
+        console.print(f"[yellow]Warning: file is long; using first 3000 chars[/yellow]")
         code = code[:3000] + "\n# ... (truncated)"
 
     console.print(f"[dim]Explaining {source}...[/dim]")
@@ -46,6 +46,6 @@ def run(
     console.print()
     console.print(Panel(
         Markdown(response),
-        title=f"[bold blue]Explanation — {source}[/bold blue]",
+        title=f"[bold blue]Explanation - {source}[/bold blue]",
         border_style="blue",
     ))

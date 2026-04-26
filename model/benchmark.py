@@ -251,7 +251,7 @@ def run_benchmark(
         json.dump(summary, f, indent=2)
 
     logger.info(f"\n{'='*60}")
-    logger.info(f"RESULTS — {label.upper()}")
+    logger.info(f"RESULTS - {label.upper()}")
     logger.info(f"{'='*60}")
     logger.info(f"  pass@1:        {summary['pass@1']}%")
     if pass10:
@@ -308,7 +308,7 @@ def compare_results():
     print("\n" + "="*60)
     print("RESUME HEADLINE:")
     print(f'  "Fine-tuned Qwen2.5-Coder-14B on 75K Python samples,')
-    print(f'   improving HumanEval pass@1 from {baseline["pass@1"]}% → {finetuned["pass@1"]}%')
+    print(f'   improving HumanEval pass@1 from {baseline["pass@1"]}% -> {finetuned["pass@1"]}%')
     print(f'   (+{delta_pass1:.1f}%)"')
     print("="*60 + "\n")
 

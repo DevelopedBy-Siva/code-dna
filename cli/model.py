@@ -21,7 +21,7 @@ def get_model_and_tokenizer():
     model_path = cfg.model_path
 
     if not Path(model_path).exists() and not model_path.startswith("Qwen/"):
-        console.print(f"[red]❌ Model not found at: {model_path}[/red]")
+        console.print(f"[red]Model not found at: {model_path}[/red]")
         console.print("[yellow]Set the correct path in ~/.pyassist/config.toml or PYASSIST_MODEL_PATH env var[/yellow]")
         raise SystemExit(1)
 
@@ -48,7 +48,7 @@ def get_model_and_tokenizer():
         model.eval()
 
     _model, _tokenizer = model, tokenizer
-    console.print(" [green]✓[/green]")
+    console.print(" [green]ok[/green]")
     return model, tokenizer
 
 
