@@ -25,6 +25,40 @@ This project fine-tunes [Qwen2.5-Coder-14B-Instruct](https://huggingface.co/Qwen
 - LoRA fine-tuning with Unsloth and the standard Hugging Face `Trainer`
 - HumanEval benchmarking before and after training
 - merged-model export for local evaluation and inference
+- a local CLI for code generation, explanation, review, and chat
+
+## CLI
+
+The repo includes `pyassist`, a terminal-based Python coding assistant powered by the fine-tuned model.
+
+Commands:
+
+- `pyassist generate` to generate Python code from instructions
+- `pyassist explain` to explain Python files or snippets
+- `pyassist review` to review code and optionally suggest fixes
+- `pyassist chat` for an interactive local coding chat
+
+## CLI Preview
+
+### Help
+
+![PyAssist help](images/help.png)
+
+### Generate
+
+![PyAssist generate](images/generate.png)
+
+### Explain
+
+![PyAssist explain](images/explain.png)
+
+### Review
+
+![PyAssist review](images/review.png)
+
+### Chat
+
+![PyAssist chat](images/chat.png)
 
 ## Model Details
 
@@ -63,13 +97,28 @@ Cleaning steps:
 
 ```text
 pycode-gen/
-├── train.py
-├── benchmark.py
+├── cli/
+│   ├── cli.py
+│   ├── model.py
+│   ├── generate.py
+│   ├── explain.py
+│   ├── review.py
+│   ├── chat.py
+│   ├── prompts.py
+│   └── config.py
+├── model/
+│   ├── train.py
+│   ├── benchmark.py
+│   ├── benchmark.log
+│   └── benchmark_results/
+├── images/
+│   ├── help.png
+│   ├── generate.png
+│   ├── explain.png
+│   ├── review.png
+│   └── chat.png
+├── pyproject.toml
 ├── requirements.txt
-├── benchmark.log
-├── benchmark_results/
-│   ├── baseline_results.json
-│   └── finetuned_results.json
 └── README.md
 ```
 
@@ -85,15 +134,16 @@ conda activate pycode-gen
 pip install --upgrade pip
 pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Training
 
 ```bash
-python train.py
+python model/train.py
 ```
 
-Outputs are written to `./qwen-python-finetuned/`:
+Outputs are written to `./model/qwen-python-finetuned/`:
 
 - `lora_adapter/` for the adapter weights
 - `merged_model/` for the merged bf16 model
@@ -108,16 +158,16 @@ cfg.max_samples = 5000
 
 ```bash
 # Baseline
-python benchmark.py --model Qwen/Qwen2.5-Coder-14B-Instruct --label baseline
+python model/benchmark.py --model Qwen/Qwen2.5-Coder-14B-Instruct --label baseline
 
 # Fine-tune
-python train.py
+python model/train.py
 
 # Fine-tuned benchmark
-python benchmark.py --model ./qwen-python-finetuned/merged_model --tokenizer Qwen/Qwen2.5-Coder-14B-Instruct --label finetuned
+python model/benchmark.py --model ./model/qwen-python-finetuned/merged_model --tokenizer Qwen/Qwen2.5-Coder-14B-Instruct --label finetuned
 
 # Compare results
-python benchmark.py --compare
+python model/benchmark.py --compare
 ```
 
 Sample comparison output:
@@ -154,10 +204,20 @@ def reverse_linked_list(head):
     return prev<|im_end|>
 ```
 
+## CLI Usage
+
+```bash
+pyassist --help
+pyassist generate "write a binary search function in python"
+pyassist explain model/train.py
+pyassist review cli/model.py
+pyassist chat
+```
+
 ## Notes
 
-- `train.py` uses the standard Hugging Face `Trainer`, not `SFTTrainer`, to avoid tokenizer and EOS conflicts in the Unsloth + TRL stack.
-- `benchmark.py` supports `--tokenizer` because some local merged-model exports can fail tokenizer loading on `transformers==5.5.0`.
+- `model/train.py` uses the standard Hugging Face `Trainer`, not `SFTTrainer`, to avoid tokenizer and EOS conflicts in the Unsloth + TRL stack.
+- `model/benchmark.py` supports `--tokenizer` because some local merged-model exports can fail tokenizer loading on `transformers==5.5.0`.
 - Built with Python `3.11`, PyTorch `2.11`, Transformers `5.5.0`, TRL `1.2.0`, and Unsloth.
 
 ## Acknowledgements
