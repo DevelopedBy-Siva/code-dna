@@ -1,5 +1,6 @@
 """Model loading and cached text generation helpers."""
 
+import re
 import torch
 from pathlib import Path
 from rich.console import Console
@@ -27,35 +28,31 @@ def get_model_and_tokenizer():
 
     console.print(f"[dim]Loading model from {model_path}...[/dim]", end="")
 
-    unsloth_error = None
-    try:
-        from unsloth import FastLanguageModel
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name     = model_path,
-            max_seq_length = cfg.max_seq_length,
-            load_in_4bit   = cfg.load_in_4bit,
-            dtype          = torch.bfloat16,
-        )
-        FastLanguageModel.for_inference(model)
-    except Exception as e:
-        unsloth_error = e
-        from transformers import AutoTokenizer, AutoModelForCausalLM
-        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        model     = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype   = torch.bfloat16,
-            device_map    = "auto",
-            trust_remote_code=True,
-        )
-        model.eval()
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    model     = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        dtype           = torch.bfloat16,
+        device_map      = "auto",
+        trust_remote_code=True,
+    )
+    model.eval()
 
     _model, _tokenizer = model, tokenizer
     console.print(" [green]ok[/green]")
-    if unsloth_error is not None:
-        console.print(
-            f"[yellow]Falling back to Transformers loader ({type(unsloth_error).__name__}).[/yellow]"
-        )
     return model, tokenizer
+
+
+def clean_generated_text(text: str) -> str:
+    """Remove common markdown wrappers from model output."""
+    text = text.strip()
+
+    fenced = re.match(r"^```(?:python)?\s*\n?(.*?)\n?```$", text, re.DOTALL)
+    if fenced:
+        text = fenced.group(1).strip()
+
+    return text
 
 
 def generate(
@@ -81,4 +78,5 @@ def generate(
             eos_token_id   = tokenizer.eos_token_id,
         )
 
-    return tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True).strip()
+    text = tokenizer.decode(outputs[0][input_len:], skip_special_tokens=True).strip()
+    return clean_generated_text(text)
