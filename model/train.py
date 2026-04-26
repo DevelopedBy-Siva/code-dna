@@ -6,6 +6,7 @@ import os
 import inspect
 import torch
 import logging
+from pathlib import Path
 from dataclasses import dataclass
 from datasets import load_dataset, concatenate_datasets, Dataset
 from transformers import (
@@ -15,6 +16,9 @@ from transformers import (
     EarlyStoppingCallback,
 )
 from unsloth import FastLanguageModel
+
+BASE_DIR = Path(__file__).resolve().parent
+TRAINING_LOG = BASE_DIR / "training.log"
 
 @dataclass
 class Config:
@@ -30,7 +34,7 @@ class Config:
         "gate_proj", "up_proj", "down_proj",
     )
 
-    output_dir: str                  = "./qwen-python-finetuned"
+    output_dir: str                  = str(BASE_DIR / "qwen-python-finetuned")
     num_train_epochs: int            = 1
     per_device_train_batch_size: int = 4
     gradient_accumulation_steps: int = 4
@@ -59,7 +63,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("training.log"),
+        logging.FileHandler(TRAINING_LOG),
     ]
 )
 logger = logging.getLogger(__name__)

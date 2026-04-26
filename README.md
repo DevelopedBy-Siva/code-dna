@@ -62,11 +62,11 @@ Cleaning steps:
 ## Project Structure
 
 ```text
-code-dna/
+pycode-gen/
 ├── train.py
 ├── benchmark.py
 ├── requirements.txt
-|── benchmark.log
+├── benchmark.log
 ├── benchmark_results/
 │   ├── baseline_results.json
 │   └── finetuned_results.json
@@ -75,45 +75,16 @@ code-dna/
 
 ## Setup
 
-### Base environment
-
 ```bash
-git clone https://github.com/yourusername/code-dna
-cd code-dna
+git clone https://github.com/DevelopedBy-Siva/pycode-gen
+cd pycode-gen
 
-conda create -n cdna python=3.11 -y
-conda activate cdna
+conda create -n pycode-gen python=3.11 -y
+conda activate pycode-gen
 
 pip install --upgrade pip
 pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
 pip install -r requirements.txt
-```
-
-### Environment used for the reported result
-
-The run that produced the `84.76%` score used:
-
-- Python `3.11.15`
-- PyTorch `2.11.0+cu128`
-- CUDA runtime `12.8`
-- Transformers `5.5.0`
-- TRL `1.2.0`
-- Unsloth `2026.4.8`
-- Unsloth Zoo `2026.4.9`
-- NVIDIA driver with A100 80GB
-
-### Optional FlashAttention 2 environment
-
-The original environment trained without FlashAttention 2. For a faster environment, create a separate env and install a matching prebuilt wheel:
-
-```bash
-conda create -n cdna-fa2 python=3.11 -y
-conda activate cdna-fa2
-
-pip install --upgrade pip
-pip install torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
-pip install -r requirements.txt
-pip install "https://github.com/lesj0610/flash-attention/releases/download/v2.8.3-cu12-torch2.11/flash_attn-2.8.3%2Bcu12torch2.11cxx11abiTRUE-cp311-cp311-linux_x86_64.whl"
 ```
 
 ## Training
@@ -187,7 +158,7 @@ def reverse_linked_list(head):
 
 - `train.py` uses the standard Hugging Face `Trainer`, not `SFTTrainer`, to avoid tokenizer and EOS conflicts in the Unsloth + TRL stack.
 - `benchmark.py` supports `--tokenizer` because some local merged-model exports can fail tokenizer loading on `transformers==5.5.0`.
-- FlashAttention 2 is a speed optimization, not a requirement for reproducing the benchmark result.
+- Built with Python `3.11`, PyTorch `2.11`, Transformers `5.5.0`, TRL `1.2.0`, and Unsloth.
 
 ## Acknowledgements
 

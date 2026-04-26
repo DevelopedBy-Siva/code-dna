@@ -14,17 +14,20 @@ from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from tqdm import tqdm
 
+BASE_DIR = Path(__file__).resolve().parent
+BENCHMARK_LOG = BASE_DIR / "benchmark.log"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("benchmark.log"),
+        logging.FileHandler(BENCHMARK_LOG),
     ]
 )
 logger = logging.getLogger(__name__)
 
-RESULTS_DIR = Path("./benchmark_results")
+RESULTS_DIR = BASE_DIR / "benchmark_results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
 PROMPT_TEMPLATE = """### Instruction:
@@ -335,7 +338,7 @@ def main():
         print("Error: --model is required unless using --compare")
         print("\nExamples:")
         print("  python benchmark.py --model Qwen/Qwen2.5-Coder-14B-Instruct --label baseline")
-        print("  python benchmark.py --model ./qwen-python-finetuned/merged_model --label finetuned")
+        print(f"  python benchmark.py --model {BASE_DIR / 'qwen-python-finetuned' / 'merged_model'} --label finetuned")
         print("  python benchmark.py --compare")
         sys.exit(1)
 
