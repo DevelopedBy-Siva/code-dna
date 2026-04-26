@@ -1,7 +1,9 @@
 """Model loading and cached text generation helpers."""
 
+import io
 import re
 import torch
+import contextlib
 from pathlib import Path
 from rich.console import Console
 from .config import cfg
@@ -10,6 +12,13 @@ console = Console()
 
 _model     = None
 _tokenizer = None
+
+
+@contextlib.contextmanager
+def suppress_model_load_noise():
+    """Mute noisy stdout/stderr emitted by optional backend imports."""
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        yield
 
 
 def get_model_and_tokenizer():
@@ -28,15 +37,16 @@ def get_model_and_tokenizer():
 
     console.print(f"[dim]Loading model from {model_path}...[/dim]", end="")
 
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    with suppress_model_load_noise():
+        from transformers import AutoTokenizer, AutoModelForCausalLM
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    model     = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        dtype           = torch.bfloat16,
-        device_map      = "auto",
-        trust_remote_code=True,
-    )
+        tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+        model     = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            dtype           = torch.bfloat16,
+            device_map      = "auto",
+            trust_remote_code=True,
+        )
     model.eval()
 
     _model, _tokenizer = model, tokenizer
