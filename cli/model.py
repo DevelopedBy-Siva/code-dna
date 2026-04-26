@@ -27,6 +27,7 @@ def get_model_and_tokenizer():
 
     console.print(f"[dim]Loading model from {model_path}...[/dim]", end="")
 
+    unsloth_error = None
     try:
         from unsloth import FastLanguageModel
         model, tokenizer = FastLanguageModel.from_pretrained(
@@ -36,7 +37,8 @@ def get_model_and_tokenizer():
             dtype          = torch.bfloat16,
         )
         FastLanguageModel.for_inference(model)
-    except ImportError:
+    except Exception as e:
+        unsloth_error = e
         from transformers import AutoTokenizer, AutoModelForCausalLM
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         model     = AutoModelForCausalLM.from_pretrained(
@@ -49,6 +51,10 @@ def get_model_and_tokenizer():
 
     _model, _tokenizer = model, tokenizer
     console.print(" [green]ok[/green]")
+    if unsloth_error is not None:
+        console.print(
+            f"[yellow]Falling back to Transformers loader ({type(unsloth_error).__name__}).[/yellow]"
+        )
     return model, tokenizer
 
 
