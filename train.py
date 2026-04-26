@@ -1,24 +1,6 @@
-"""
-Fine-tuning Qwen2.5-Coder-14B for Python Code Generation
-=========================================================
-Hardware:      A100 (40GB or 80GB)
-Method:        LoRA via Unsloth + HuggingFace Trainer (NOT SFTTrainer)
-Transformers:  5.x
-Unsloth:       2026.x
-Python:        3.11
+"""Fine-tune Qwen2.5-Coder-14B on Python instruction data with Unsloth LoRA."""
 
-Why Trainer not SFTTrainer:
-    TRL 1.2 + Unsloth have a tokenizer patching conflict that injects
-    <EOS_TOKEN> into SFTConfig regardless of what you set. The standard
-    HuggingFace Trainer has none of these checks and works perfectly
-    with pre-tokenized datasets.
-
-Install:
-    pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
-    pip install datasets accelerate bitsandbytes transformers
-"""
-
-import unsloth  # MUST be first import
+import unsloth
 
 import os
 import inspect
@@ -34,36 +16,29 @@ from transformers import (
 )
 from unsloth import FastLanguageModel
 
-# ─────────────────────────────────────────────
-# CONFIG
-# ─────────────────────────────────────────────
-
 @dataclass
 class Config:
-    # Model
     model_name: str     = "Qwen/Qwen2.5-Coder-14B-Instruct"
     max_seq_length: int = 4096
-    load_in_4bit: bool  = False         # A100 has enough VRAM
+    load_in_4bit: bool  = False
 
-    # LoRA
     lora_r: int         = 64
     lora_alpha: int     = 128
-    lora_dropout: float = 0.0           # 0.0 = Unsloth fast patching
+    lora_dropout: float = 0.0
     target_modules: tuple = (
         "q_proj", "k_proj", "v_proj", "o_proj",
         "gate_proj", "up_proj", "down_proj",
     )
 
-    # Training
     output_dir: str                  = "./qwen-python-finetuned"
     num_train_epochs: int            = 1
     per_device_train_batch_size: int = 4
-    gradient_accumulation_steps: int = 4        # effective batch = 16
+    gradient_accumulation_steps: int = 4
     warmup_steps: int                = 100
-    learning_rate: float             = 1e-4     # conservative — baseline at 80%
+    learning_rate: float             = 1e-4
     lr_scheduler_type: str           = "cosine"
     weight_decay: float              = 0.01
-    bf16: bool                       = True     # A100 native
+    bf16: bool                       = True
     fp16: bool                       = False
     logging_steps: int               = 25
     save_steps: int                  = 500
@@ -73,16 +48,11 @@ class Config:
     optim: str                       = "adamw_8bit"
     seed: int                        = 42
 
-    # Dataset
     val_split: float = 0.02
-    max_samples: int = None             # e.g. 5000 for a quick smoke test
+    max_samples: int = None
 
 
 cfg = Config()
-
-# ─────────────────────────────────────────────
-# LOGGING
-# ─────────────────────────────────────────────
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,19 +64,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Tokens from other model families present in some HF datasets
 FOREIGN_EOS = ["<EOS_TOKEN>", "</s>", "<eos>", "<|endoftext|>", "<|eot_id|>"]
 
-
-# ─────────────────────────────────────────────
-# DATASET
-# ─────────────────────────────────────────────
-
 def load_and_merge_datasets() -> Dataset:
+    """Load, normalize, and combine the training datasets."""
     logger.info("Loading datasets...")
     all_datasets = []
 
-    # 1. Vezora — every sample is tested/verified
     try:
         ds = load_dataset("Vezora/Tested-22k-Python-Alpaca", split="train")
         logger.info(f"  Vezora:          {len(ds):>6} samples")
@@ -114,7 +78,6 @@ def load_and_merge_datasets() -> Dataset:
     except Exception as e:
         logger.warning(f"  Vezora failed: {e}")
 
-    # 2. Python code instructions
     try:
         ds = load_dataset("iamtarun/python_code_instructions_18k_alpaca", split="train")
         logger.info(f"  iamtarun:        {len(ds):>6} samples")
@@ -122,7 +85,6 @@ def load_and_merge_datasets() -> Dataset:
     except Exception as e:
         logger.warning(f"  iamtarun failed: {e}")
 
-    # 3. flytech python codes
     try:
         ds = load_dataset("flytech/python-codes-25k", split="train")
         logger.info(f"  flytech:         {len(ds):>6} samples")
@@ -130,7 +92,6 @@ def load_and_merge_datasets() -> Dataset:
     except Exception as e:
         logger.warning(f"  flytech failed: {e}")
 
-    # 4. Magicoder — filter Python only
     try:
         ds = load_dataset("ise-uiuc/Magicoder-OSS-Instruct-75K", split="train")
         ds = ds.filter(lambda x: x.get("lang", "").lower() == "python")
@@ -170,6 +131,7 @@ def load_and_merge_datasets() -> Dataset:
 
 
 def clean_dataset(dataset: Dataset) -> Dataset:
+    """Drop noisy examples and simple near-duplicates."""
     logger.info("Cleaning dataset...")
 
     def strip_and_clean(example):
@@ -209,16 +171,10 @@ def clean_dataset(dataset: Dataset) -> Dataset:
     logger.info(f"  After dedup:          {len(dataset)}")
     return dataset
 
-
-# ─────────────────────────────────────────────
-# TOKENIZE
-# Pre-tokenize so Trainer gets input_ids/labels directly.
-# No TRL chat-template processing involved at all.
-# ─────────────────────────────────────────────
-
 def tokenize_dataset(dataset: Dataset, tokenizer) -> Dataset:
+    """Pre-tokenize examples for the plain Hugging Face Trainer."""
     logger.info("Tokenizing...")
-    EOS = tokenizer.eos_token  # <|im_end|> for Qwen2.5
+    EOS = tokenizer.eos_token
 
     def tokenize(example):
         inp = example.get("input", "").strip()
@@ -248,6 +204,7 @@ def tokenize_dataset(dataset: Dataset, tokenizer) -> Dataset:
 
 
 def prepare_dataset(dataset: Dataset, tokenizer):
+    """Tokenize and split the dataset into train and eval sets."""
     if cfg.max_samples and len(dataset) > cfg.max_samples:
         dataset = dataset.shuffle(seed=cfg.seed).select(range(cfg.max_samples))
 
@@ -256,12 +213,8 @@ def prepare_dataset(dataset: Dataset, tokenizer):
     logger.info(f"  Train: {len(split['train'])}  |  Val: {len(split['test'])}")
     return split["train"], split["test"]
 
-
-# ─────────────────────────────────────────────
-# MODEL
-# ─────────────────────────────────────────────
-
 def load_model():
+    """Load the base model and attach LoRA adapters."""
     logger.info(f"Loading: {cfg.model_name}")
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name     = cfg.model_name,
@@ -287,12 +240,8 @@ def load_model():
     logger.info(f"Trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
     return model, tokenizer
 
-
-# ─────────────────────────────────────────────
-# TRAIN — using HuggingFace Trainer, not SFTTrainer
-# ─────────────────────────────────────────────
-
 def train(model, tokenizer, train_dataset, eval_dataset):
+    """Train the model with the standard Hugging Face Trainer."""
     logger.info("Configuring Trainer...")
 
     training_args = TrainingArguments(
@@ -322,13 +271,12 @@ def train(model, tokenizer, train_dataset, eval_dataset):
         remove_unused_columns       = False,
     )
 
-    # Pads sequences in a batch to the same length
     collator = DataCollatorForSeq2Seq(
         tokenizer,
         model           = model,
         padding         = True,
-        pad_to_multiple_of = 8,         # efficient on A100 tensor cores
-        label_pad_token_id = -100,      # -100 = ignored in loss computation
+        pad_to_multiple_of = 8,
+        label_pad_token_id = -100,
     )
 
     trainer_kwargs = {
@@ -365,12 +313,8 @@ def train(model, tokenizer, train_dataset, eval_dataset):
     logger.info(f"  Samples/sec: {stats.metrics['train_samples_per_second']:.1f}")
     return trainer
 
-
-# ─────────────────────────────────────────────
-# SAVE
-# ─────────────────────────────────────────────
-
 def save_model(model, tokenizer):
+    """Save both the LoRA adapter and merged full model."""
     lora_path   = os.path.join(cfg.output_dir, "lora_adapter")
     merged_path = os.path.join(cfg.output_dir, "merged_model")
 
@@ -382,12 +326,8 @@ def save_model(model, tokenizer):
     model.save_pretrained_merged(merged_path, tokenizer, save_method="merged_16bit")
     logger.info(f"Merged model  → {merged_path}")
 
-
-# ─────────────────────────────────────────────
-# INFERENCE TEST
-# ─────────────────────────────────────────────
-
 def test_inference(model, tokenizer):
+    """Run a small generation smoke test."""
     logger.info("Quick inference test...")
     FastLanguageModel.for_inference(model)
 
@@ -412,18 +352,12 @@ def test_inference(model, tokenizer):
         print(f"\n{'='*60}\n{prompt}\n{'='*60}")
         print(tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True))
 
-
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
-
 def main():
     logger.info("=" * 60)
     logger.info("Qwen2.5-Coder-14B  |  Python Fine-tuning")
     logger.info("HuggingFace Trainer + Unsloth LoRA")
     logger.info("=" * 60)
 
-    # Load model first — tokenizer needed for dataset prep
     model, tokenizer  = load_model()
 
     raw               = load_and_merge_datasets()
